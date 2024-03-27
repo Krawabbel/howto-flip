@@ -15,7 +15,7 @@ In the Flipper Zero CLI, I can e.g. capture the "Mute" command from my Edifier R
 NECext, A:0xE710, C:0xFF00
 ```
 
-"NECext" is the protocol, "A" denotes the address, i.e. the intended recipient of the signal (the speakers) and "C" denotes the command. The protocol and address don't change for different commands. For instance, if I instead press the "Power" button, I get
+"NECext" is the protocol, "A" denotes the address, i.e. the intended recipient of the signal (the speakers), and "C" denotes the command. The protocol and address don't change for different commands. For instance, if I instead press the "Power" button, I get
 
 ```
 NECext, A:0xE710, C:0xFE01
@@ -106,6 +106,8 @@ We see, that this signal is transmitted in "little endian" mode, i.e. the least 
 ## How can I emulate a command with the Flipper Zero?
 
 Generally, I can simply generate the files `mute.ir` and `mute_raw.ir` which I can store on the Flipper Zero and use to send the "mute" command to my speakers. For the latter, we need some more information.
+
+https://www.phidgets.com/docs/IR_Remote_Control_Guide#:~:text=Duty%20cycle%20is%20the%20period,stream%20cannot%20be%20automatically%20determined.
 
 ### How to determine the carrier frequency?
 
