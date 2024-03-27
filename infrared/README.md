@@ -109,6 +109,8 @@ Generally, I can simply generate the files `mute.ir` and `mute_raw.ir` which I c
 
 https://www.phidgets.com/docs/IR_Remote_Control_Guide#:~:text=Duty%20cycle%20is%20the%20period,stream%20cannot%20be%20automatically%20determined.
 
+https://docs.flipper.net/development/hardware/tech-specs
+
 ### How to determine the carrier frequency?
 
 According to [this explanation](https://techdocs.altium.com/display/FPGA/NEC+Infrared+Transmission+Protocol), the carrier frequency of NECext is ~33kHz. But if we only see the raw data, how do we find this?
