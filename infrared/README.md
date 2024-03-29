@@ -119,7 +119,7 @@ In my case, if I wanted to emulate the "mute" signal from above, I would call `i
 
 2. `ir tx RAW F:<frequency> DC:<duty_cycle> <samples>`
 
-Sends a raw command. This is really powerful because ...
+Sends a raw command. 
 
 The argument `<frequency>` denotes the carrier frequency. It is given in Hz and can be any value between `10000` and `56000`. 
 
