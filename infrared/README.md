@@ -1,12 +1,14 @@
-The below explanation assumes the reader is using Flipper Lab. 
+In this document, I try to answer some questions regarding the Flipper Zero IR functionality which I could not directly find in the [Flipper Docs IR documentation](https://docs.flipper.net/infrared).
 
 Some fundamentals of IR remote control can be found [here](https://www.laser.com/dhouston/ir-rf_fundamentals.html).
 
-Here, we seek answers to the following questions.
+> [!TIP]
+> The below explanation assumes the reader is using Flipper Lab. It seems to be the most powerful of the access options for the Flipper.
 
 - [How can I capture an IR signal in the Flipper Zero CLI?](#how-can-i-capture-an-ir-signal-in-the-flipper-zero-cli)
 - [How does the raw signal relate to the decoded message?](#how-does-the-raw-signal-relate-to-the-decoded-message)
 - [How can I emulate a command with the Flipper Zero?](#how-can-i-emulate-a-command-with-the-flipper-zero)
+  - [What are the carrier frequency and the duty cycle?](#what-are-the-carrier-frequency-and-the-duty-cycle)
 
 
 ## How can I capture an IR signal in the Flipper Zero CLI?
@@ -33,7 +35,7 @@ RAW, 87 samples:
 
 We can plot the corresponding raw IR signal file `mute_raw.ir` (I'll explain how to build this in a bit.) in the Flipper Zero Pulse Plotter. 
 
-![image](pulse-plotter.png "(zoomed) pulse plot of mute_raw.ir")
+![image](mute_pulse_plot.png "(zoomed) pulse plot of mute_raw.ir")
 
 We see that every number of the raw data represents a duration (in microseconds) of alternating "high" and "low", i.e. 8934µs "high", 4472µs "low", 554µs "high", ... 
 
@@ -125,6 +127,8 @@ The argument `<frequency>` denotes the carrier frequency. It is given in Hz and 
 
 The argument `<DC>` refers to the duty cycle. This is a percentage that must be in the range `0`-`100`. 
 
+### What are the carrier frequency and the duty cycle?
+
 > [!WARNING]
 > The following explanation could very well be wrong but it makes sense to me and I have not been able to find anything that says otherwise.
 
@@ -152,7 +156,7 @@ If I want to use a raw or a decoded signal repeatedly, I can also use the above 
 At this point, the composition of these files is quite self-explanatory.
 
 > [!CAUTION]
-> For some reason, the raw data file requires a floating point number for the duty cycle. My Flipper crashes if I put in anything larger than 1. 
+> For some reason, the raw data file requires a floating point in the range `0.0`-`1.0` number for the duty cycle. My Flipper crashes if I put in anything larger. 
 
 
 

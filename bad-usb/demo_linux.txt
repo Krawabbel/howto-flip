@@ -1,0 +1,8 @@
+REM "Hello World" for Linux
+DELAY 1000
+CTRL-ALT t 
+DELAY 1000
+STRING gedit
+ENTER
+DELAY 1000
+STRING Hello, Flipper!
