@@ -9,4 +9,5 @@ In this project, I want to write a Chip-8 emulator for the flipper zero.
   - [Part 1](https://instantiator.dev/post/flipper-zero-app-tutorial-01/)
   - [Part 2](https://instantiator.dev/post/flipper-zero-app-tutorial-02/)
 
+- [Chip-8 Reference](http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#2.4)
 

@@ -14,5 +14,4 @@ App(
     fap_author="Dr. Krawabbel",
     fap_weburl="https://github.com/Krawabbel/howto-flip/apps/chip8",
     fap_icon_assets="images",  # Image assets to compile for this application
-    fap_file_assets="files",
 )
