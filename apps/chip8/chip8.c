@@ -15,6 +15,7 @@ also the ViewPort section of the User Interface wiki page
 */
 
 #include <furi.h>
+#include <furi_hal.h>
 #include <gui/gui.h>
 #include <storage/storage.h>
 #include <toolbox/stream/stream.h>
@@ -49,6 +50,17 @@ static void my_draw_callback(Canvas* canvas, void* context) {
             const uint8_t x = x_orig + x_line;
             const uint8_t y = y_orig + y_line;
             if(vm->screen[x_line][y_line]) canvas_draw_dot(canvas, x, y);
+        }
+    }
+
+    if(play_sound(vm)) {
+        if(furi_hal_speaker_is_mine() || furi_hal_speaker_acquire(30)) {
+            furi_hal_speaker_start(659.26f, 1.0f);
+        }
+    } else {
+        if(furi_hal_speaker_is_mine()) {
+            furi_hal_speaker_stop();
+            furi_hal_speaker_release();
         }
     }
 }

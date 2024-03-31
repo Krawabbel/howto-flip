@@ -250,6 +250,10 @@ bool is_error(const Chip8Status status) {
     return status != Chip8StatusOK;
 }
 
+bool play_sound(VM* vm) {
+    return vm->sound_timer > 0;
+}
+
 Chip8Status update(VM* vm, const uint32_t timestamp_ms) {
     if(vm == NULL) return Chip8StatusUninitializedVM;
 

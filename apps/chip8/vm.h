@@ -48,4 +48,6 @@ Chip8Status init(VM* vm, const uint32_t timestamp_ms);
 
 Chip8Status update(VM* vm, const uint32_t timestamp_ms);
 
+bool play_sound(VM* vm);
+
 #endif // CHIP8_VM_H
