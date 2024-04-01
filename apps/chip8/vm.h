@@ -1,53 +1,32 @@
-#ifndef CHIP8_VM_H
-#define CHIP8_VM_H
+#pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
-#define PROG_START 0x0200
-#define MEMORY_SIZE 0x1000
-#define STACK_SIZE 0xFF
-#define SCREEN_WIDTH 64
-#define SCREEN_HEIGHT 32
-#define CPU_TICKS_PER_SEC 500 // Hz (cpu speed)
+#define VM_SCREEN_WIDTH 64
+#define VM_SCREEN_HEIGHT 32
+#define VM_NUM_KEYS 16
+#define VM_TICKS_PER_SEC 500 // Hz (cpu speed)
 
 typedef uint8_t byte;
 typedef uint16_t word;
 
-typedef enum {
-    Chip8StatusOK,
-    Chip8StatusFileError,
-    Chip8StatusUnknownOpcodeError,
-    Chip8StatusStackOverflowError,
-    Chip8StatusUninitializedVM,
-} Chip8Status;
+typedef struct VirtualMachine VM;
 
-typedef struct VirtualMachine {
-    byte memory[MEMORY_SIZE];
-    word pc, i;
+VM* vm_alloc();
 
-    byte v[0x10];
+void vm_free(VM* vm);
 
-    word stack[STACK_SIZE];
-    byte sp;
+void vm_start(VM* vm, const uint32_t timestamp_ms);
 
-    byte delay_timer, sound_timer;
-    uint32_t init_timestamp;
-    uint64_t cpu_ticks, timer_ticks;
+bool vm_update(VM* vm, const uint32_t timestamp_ms);
 
-    bool is_key_pressed[0x10];
+void vm_write_prog_to_memory(VM* vm, const word addr, const byte data);
 
-    bool is_waiting_for_key;
-    byte waiting_for_key_index;
+void vm_set_key_input(VM* vm, const size_t key, const bool is_pressed);
 
-    bool is_draw_pending;
+bool vm_get_pixel(VM* vm, const size_t x, const size_t y);
 
-    bool screen[SCREEN_WIDTH][SCREEN_HEIGHT];
-} VM;
+bool vm_is_sound_playing(VM* vm);
 
-Chip8Status init(VM* vm, const uint32_t timestamp_ms);
-
-Chip8Status update(VM* vm, const uint32_t timestamp_ms);
-
-bool play_sound(VM* vm);
-
-#endif // CHIP8_VM_H
+uint32_t vm_speed(VM* vm, const uint32_t timestamp_ms);
