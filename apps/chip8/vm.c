@@ -9,9 +9,9 @@
 #define PROG_START 0x0200
 #define MEMORY_SIZE 0x1000
 #define STACK_SIZE 0xFF
-
-#define MS_PER_CPU_TICK (1000 / VM_TICKS_PER_SEC)
-#define MS_PER_TIMER_TICK (1000 / 60)
+#define TIMER_TICKS_PER_SEC 60
+#define MS_PER_CPU_TICK (1000 / VM_CPU_TICKS_PER_SEC)
+#define MS_PER_TIMER_TICK (1000 / TIMER_TICKS_PER_SEC)
 
 // clang-format off
 byte HEX_DIGITS[5 * 16] = {
@@ -44,7 +44,7 @@ typedef struct VirtualMachine {
     byte sp;
 
     byte delay_timer, sound_timer;
-    uint32_t init_timestamp;
+    uint32_t timestamp_init;
     uint64_t cpu_ticks, timer_ticks;
 
     bool is_key_pressed[0x10];
@@ -72,14 +72,14 @@ void vm_free(VM* vm) {
     free(vm);
 }
 
-void vm_start(VM* vm, const uint32_t timestamp_ms) {
+void vm_start(VM* vm, const uint32_t timestamp_world) {
     vm->pc = PROG_START;
     vm->i = 0x0000;
     vm->sp = 0;
     vm->delay_timer = 0;
     vm->sound_timer = 0;
     vm->is_waiting_for_key = false;
-    vm->init_timestamp = timestamp_ms;
+    vm->timestamp_init = timestamp_world;
     vm->cpu_ticks = 0;
     vm->timer_ticks = 0;
 
@@ -264,55 +264,85 @@ bool execute(VM* vm, word opcode) {
     return false;
 }
 
-void reset_time(VM* vm, const uint32_t timestamp_ms) {
-    vm->init_timestamp = timestamp_ms;
+void reset_time(VM* vm, const uint32_t timestamp_world) {
+    vm->timestamp_init = timestamp_world;
     vm->cpu_ticks = 0;
     vm->timer_ticks = 0;
 }
 
-uint32_t vm_speed(VM* vm, const uint32_t timestamp_ms) {
-    const uint32_t cpu_time_s = (timestamp_ms - vm->init_timestamp) / 1000;
-    return cpu_time_s > 0 ? vm->cpu_ticks / cpu_time_s : 0;
+uint32_t vm_tick_speed(const uint64_t ticks, const uint32_t uptime_ms) {
+    const uint32_t uptime_s = uptime_ms / 1000;
+    return uptime_s > 0 ? ticks / uptime_s : 0;
 }
 
-bool vm_update(VM* vm, const uint32_t timestamp_ms) {
-    // handle time
-    if(timestamp_ms < vm->init_timestamp) reset_time(vm, timestamp_ms);
-    const uint32_t delta_time = timestamp_ms - vm->init_timestamp;
+uint32_t vm_uptime(VM* vm, const uint32_t timestamp_world) {
+    return timestamp_world - vm->timestamp_init;
+}
 
-    // handle input
+uint32_t vm_timer_speed(VM* vm, const uint32_t timestamp_world) {
+    return vm_tick_speed(vm->timer_ticks, vm_uptime(vm, timestamp_world));
+}
+
+uint32_t vm_cpu_speed(VM* vm, const uint32_t timestamp_world) {
+    return vm_tick_speed(vm->cpu_ticks, vm_uptime(vm, timestamp_world));
+}
+
+static void handle_input(VM* vm) {
     if(vm->is_waiting_for_key) {
         for(byte key = 0; key < 0x10; key++) {
             if(vm->is_key_pressed[key]) {
                 vm->v[vm->waiting_for_key_index] = key;
                 vm->is_waiting_for_key = false;
-                return true;
             }
         }
+    }
+}
+
+static bool tick_cpu(VM* vm) {
+    vm->cpu_ticks++;
+    if(vm->is_waiting_for_key) {
         return true;
     }
+    const word opcode = fetch(vm);
+    return execute(vm, opcode);
+}
 
-    // fetch and execute opcode
-    while(delta_time > vm->cpu_ticks * MS_PER_CPU_TICK) {
-        const word opcode = fetch(vm);
+static void tick_timers(VM* vm) {
+    if(vm->delay_timer > 0) vm->delay_timer--;
+    if(vm->sound_timer > 0) vm->sound_timer--;
+    vm->timer_ticks++;
+}
 
-        if(!execute(vm, opcode)) {
+static uint32_t timestamp_cpu(VM* vm) {
+    return vm->timestamp_init + vm->cpu_ticks * MS_PER_CPU_TICK;
+}
+
+static uint32_t timestamp_timers(VM* vm) {
+    return vm->timestamp_init + vm->timer_ticks * MS_PER_TIMER_TICK;
+}
+
+static bool handle_scheduling(VM* vm) {
+    if(timestamp_cpu(vm) <= timestamp_timers(vm)) {
+        if(!tick_cpu(vm)) {
             return false;
         }
-
-        vm->cpu_ticks++;
-        if(vm->cpu_ticks == 0) reset_time(vm, timestamp_ms);
+    } else {
+        tick_timers(vm);
     }
+    return true;
+}
 
-    // handle output
-    while(delta_time > vm->timer_ticks * MS_PER_TIMER_TICK) {
-        if(vm->delay_timer > 0) vm->delay_timer--;
-        if(vm->sound_timer > 0) vm->sound_timer--;
+bool vm_update(VM* vm, const uint32_t timestamp_world) {
+    // handle time
+    if(timestamp_world < vm->timestamp_init) reset_time(vm, timestamp_world);
 
-        vm->timer_ticks++;
-        if(vm->timer_ticks == 0) reset_time(vm, timestamp_ms);
+    handle_input(vm);
+
+    while((timestamp_cpu(vm) < timestamp_world) || (timestamp_timers(vm) < timestamp_world)) {
+        if(!handle_scheduling(vm)) {
+            return false;
+        }
     }
-
     return true;
 }
 
@@ -320,8 +350,20 @@ void vm_write_prog_to_memory(VM* vm, const word addr, const byte data) {
     vm->memory[PROG_START + addr] = data;
 }
 
-void vm_set_key_input(VM* vm, const size_t key, const bool is_pressed) {
-    vm->is_key_pressed[key] = is_pressed;
+void vm_set_keys(VM* vm, const word keys) {
+    for(size_t id = 0; id < VM_NUM_KEYS; id++) {
+        vm->is_key_pressed[id] = (keys & (1 << id)) > 0;
+    }
+}
+
+word vm_get_keys(VM* vm) {
+    word keys = 0;
+    for(size_t id = 0; id < VM_NUM_KEYS; id++) {
+        if(vm->is_key_pressed[id]) {
+            keys |= (1 << id);
+        }
+    }
+    return keys;
 }
 
 bool vm_get_pixel(VM* vm, const size_t x, const size_t y) {

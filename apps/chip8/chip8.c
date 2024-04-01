@@ -222,7 +222,7 @@ int32_t chip8_app() {
     void* context = chip8;
 
     file_browser_set_callback(chip8->browser, file_browser_callback, context);
-    file_browser_configure(chip8->browser, "ch8", NULL, true, true, NULL, true);
+    file_browser_configure(chip8->browser, "ch8", ROM_PATH, true, true, NULL, true);
     file_browser_start(chip8->browser, chip8->path);
     View* browser_view = file_browser_get_view(chip8->browser);
     view_dispatcher_add_view(chip8->view_dispatcher, FileBrowserViewId, browser_view);
@@ -246,13 +246,13 @@ int32_t chip8_app() {
 
     view_dispatcher_remove_view(chip8->view_dispatcher, FileBrowserViewId);
     view_dispatcher_remove_view(chip8->view_dispatcher, GameViewId);
-
     furi_record_close(RECORD_GUI);
+    view_dispatcher_free(chip8->view_dispatcher);
 
     game_free(chip8->game);
-    file_browser_free(chip8->browser);
+
     furi_string_free(chip8->path);
-    view_dispatcher_free(chip8->view_dispatcher);
+    file_browser_free(chip8->browser);
 
     return 0;
 }
