@@ -1,4 +1,4 @@
-In this project, I want to write a Chip-8 emulator for the flipper zero.
+In this project, I want to write a Chip-8 interpreter for the flipper zero.
 
 # Ressources
 

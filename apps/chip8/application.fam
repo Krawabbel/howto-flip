@@ -2,7 +2,7 @@
 
 App(
     appid="chip8",  # Must be unique
-    name="Chip8 Emulator",  # Displayed in menus
+    name="Chip8 Interpreter",  # Displayed in menus
     apptype=FlipperAppType.EXTERNAL,
     entry_point="chip8_app",
     stack_size=2 * 1024,
@@ -10,7 +10,7 @@ App(
     # Optional values
     # fap_version="0.1",
     fap_icon="chip8.png",  # 10x10 1-bit PNG
-    fap_description="Dr. Krawabbel's Chip-8 Emulater",
+    fap_description="Dr. Krawabbel's Chip-8 Interpreter",
     fap_author="Dr. Krawabbel",
     fap_weburl="https://github.com/Krawabbel/howto-flip/apps/chip8",
     fap_icon_assets="images",  # Image assets to compile for this application
