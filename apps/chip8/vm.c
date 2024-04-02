@@ -55,7 +55,13 @@ typedef struct VirtualMachine {
     bool screen[VM_SCREEN_WIDTH][VM_SCREEN_HEIGHT];
 } VM;
 
-void clear_display(VM* vm) {
+static bool fetch_is_key_pressed(VM* vm, const byte key_id) {
+    const bool ret = vm->is_key_pressed[key_id];
+    vm->is_key_pressed[key_id] = false;
+    return ret;
+}
+
+static void clear_display(VM* vm) {
     for(int j = 0; j < VM_SCREEN_WIDTH; j++) {
         for(int k = 0; k < VM_SCREEN_HEIGHT; k++) {
             vm->screen[j][k] = false;
@@ -92,17 +98,17 @@ void vm_start(VM* vm, const uint32_t timestamp_world) {
     clear_display(vm);
 }
 
-word join(const byte lo, const byte hi) {
+static word join(const byte lo, const byte hi) {
     return ((word)(hi) << 8) | (word)(lo);
 }
 
-word fetch(VM* vm) {
+static word fetch(VM* vm) {
     const byte hi = vm->memory[vm->pc++];
     const byte lo = vm->memory[vm->pc++];
     return join(lo, hi);
 }
 
-bool execute(VM* vm, word opcode) {
+static bool execute(VM* vm, word opcode) {
     const word nnn = opcode & 0x0FFF;
     const byte kk = opcode & 0xFF;
     const byte n = opcode & 0x0F;
@@ -210,12 +216,12 @@ bool execute(VM* vm, word opcode) {
     case 0xE000:
         switch(opcode & 0x00FF) {
         case 0x009E: // SKP Vx
-            if((vm->is_key_pressed[vm->v[x]])) {
+            if(fetch_is_key_pressed(vm, vm->v[x])) {
                 vm->pc += 2;
             }
             return true;
         case 0x00A1: // SKNP Vx
-            if(!(vm->is_key_pressed[vm->v[x]])) {
+            if(!fetch_is_key_pressed(vm, vm->v[x])) {
                 vm->pc += 2;
             }
             return true;
@@ -264,34 +270,34 @@ bool execute(VM* vm, word opcode) {
     return false;
 }
 
-void reset_time(VM* vm, const uint32_t timestamp_world) {
+static void reset_time(VM* vm, const uint32_t timestamp_world) {
     vm->timestamp_init = timestamp_world;
     vm->cpu_ticks = 0;
     vm->timer_ticks = 0;
 }
 
-uint32_t vm_tick_speed(const uint64_t ticks, const uint32_t uptime_ms) {
+static uint32_t vm_tick_speed(const uint64_t ticks, const uint32_t uptime_ms) {
     const uint32_t uptime_s = uptime_ms / 1000;
     return uptime_s > 0 ? ticks / uptime_s : 0;
 }
 
-uint32_t vm_uptime(VM* vm, const uint32_t timestamp_world) {
+static uint32_t uptime(VM* vm, const uint32_t timestamp_world) {
     return timestamp_world - vm->timestamp_init;
 }
 
 uint32_t vm_timer_speed(VM* vm, const uint32_t timestamp_world) {
-    return vm_tick_speed(vm->timer_ticks, vm_uptime(vm, timestamp_world));
+    return vm_tick_speed(vm->timer_ticks, uptime(vm, timestamp_world));
 }
 
 uint32_t vm_cpu_speed(VM* vm, const uint32_t timestamp_world) {
-    return vm_tick_speed(vm->cpu_ticks, vm_uptime(vm, timestamp_world));
+    return vm_tick_speed(vm->cpu_ticks, uptime(vm, timestamp_world));
 }
 
 static void handle_input(VM* vm) {
     if(vm->is_waiting_for_key) {
-        for(byte key = 0; key < 0x10; key++) {
-            if(vm->is_key_pressed[key]) {
-                vm->v[vm->waiting_for_key_index] = key;
+        for(byte key_id = 0; key_id < 0x10; key_id++) {
+            if(fetch_is_key_pressed(vm, key_id)) {
+                vm->v[vm->waiting_for_key_index] = key_id;
                 vm->is_waiting_for_key = false;
             }
         }
@@ -350,20 +356,10 @@ void vm_write_prog_to_memory(VM* vm, const word addr, const byte data) {
     vm->memory[PROG_START + addr] = data;
 }
 
-void vm_set_keys(VM* vm, const word keys) {
+void vm_set_keys(VM* vm, const word key_bitfield) {
     for(size_t id = 0; id < VM_NUM_KEYS; id++) {
-        vm->is_key_pressed[id] = (keys & (1 << id)) > 0;
+        vm->is_key_pressed[id] = (key_bitfield & (1 << id)) > 0;
     }
-}
-
-word vm_get_keys(VM* vm) {
-    word keys = 0;
-    for(size_t id = 0; id < VM_NUM_KEYS; id++) {
-        if(vm->is_key_pressed[id]) {
-            keys |= (1 << id);
-        }
-    }
-    return keys;
 }
 
 bool vm_get_pixel(VM* vm, const size_t x, const size_t y) {

@@ -12,6 +12,7 @@
 
 typedef struct Chip8GameData {
     VM* vm;
+    bool input_to_key_map[InputKeyMAX][VM_NUM_KEYS];
 } GameData;
 
 typedef struct Chip8Game {
@@ -61,34 +62,15 @@ static void game_draw_callback(Canvas* canvas, void* model) {
     }
 }
 
-static size_t map_input_to_key_id(InputEvent* input_event) {
-    switch(input_event->key) {
-    case InputKeyLeft:
-        return 0x07;
-    case InputKeyRight:
-        return 0x09;
-    case InputKeyUp:
-        return 0x05;
-    case InputKeyDown:
-        return 0x08;
-    default:
-        break;
-    }
-    furi_crash("unexpected input");
-    return -1;
-}
-
-static uint16_t modify_keys(InputEvent* input_event, const word keys) {
-    if(input_event->key == InputKeyOk) {
-        return 0x00;
-    }
-    const size_t id = map_input_to_key_id(input_event);
-
+static uint16_t game_data_map_input_to_keys(GameData* data, InputEvent* input_event) {
     const bool is_key_pressed = (input_event->type == InputTypePress);
-    if(is_key_pressed) {
-        return keys | (1 << id);
+    const size_t input_id = (size_t)(input_event->key);
+    uint16_t keys = 0x00;
+    for(size_t key_id = 0; key_id < VM_NUM_KEYS; key_id++) {
+        const int bit = is_key_pressed && data->input_to_key_map[input_id][key_id];
+        keys |= (bit << key_id);
     }
-    return keys & (~(1 << id));
+    return keys;
 }
 
 static bool game_input_callback(InputEvent* input_event, void* context) {
@@ -119,8 +101,8 @@ static bool game_input_callback(InputEvent* input_event, void* context) {
             if(!vm_update(data->vm, furi_get_tick())) {
                 furi_crash("update error");
             }
-            const word keys = modify_keys(input_event, vm_get_keys(data->vm));
-            vm_set_keys(data->vm, keys);
+            const word key_bitfield = game_data_map_input_to_keys(data, input_event);
+            vm_set_keys(data->vm, key_bitfield);
         },
         false);
 
@@ -182,11 +164,26 @@ static void game_data_load(GameData* data, FuriString* path) {
     furi_record_close(RECORD_STORAGE);
 }
 
+static void game_data_connect_input_to_key(GameData* data, InputKey input_key, size_t key_id) {
+    const size_t input_id = input_key;
+    data->input_to_key_map[input_id][key_id] = true;
+}
+
 void game_start(Game* game, FuriString* path) {
     with_view_model(
         game->view,
         GameData * data,
         {
+            for(size_t input_id = 0; input_id < InputKeyMAX; input_id++) {
+                for(size_t key_id = 0; key_id < VM_NUM_KEYS; key_id++) {
+                    data->input_to_key_map[input_id][key_id] = false;
+                }
+            }
+
+            game_data_connect_input_to_key(data, InputKeyUp, 0x02);
+            game_data_connect_input_to_key(data, InputKeyDown, 0x08);
+            game_data_connect_input_to_key(data, InputKeyOk, 0x05);
+
             game_data_load(data, path);
             vm_start(data->vm, furi_get_tick());
         },

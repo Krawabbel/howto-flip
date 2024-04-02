@@ -23,8 +23,7 @@ bool vm_update(VM* vm, const uint32_t timestamp_world);
 
 void vm_write_prog_to_memory(VM* vm, const word addr, const byte data);
 
-void vm_set_keys(VM* vm, const word keys);
-word vm_get_keys(VM* vm);
+void vm_set_keys(VM* vm, const word key_bitfield);
 
 bool vm_get_pixel(VM* vm, const size_t x, const size_t y);
 
