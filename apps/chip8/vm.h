@@ -3,8 +3,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define VM_SCREEN_WIDTH 64
-#define VM_SCREEN_HEIGHT 32
 #define VM_NUM_KEYS 16
 #define VM_CPU_TICKS_PER_SEC 500 // Hz (cpu speed)
 
@@ -26,8 +24,10 @@ void vm_write_prog_to_memory(VM* vm, const word addr, const byte data);
 void vm_set_keys(VM* vm, const word key_bitfield);
 
 bool vm_get_pixel(VM* vm, const size_t x, const size_t y);
-
 bool vm_is_sound_playing(VM* vm);
 
-uint32_t vm_cpu_speed(VM* vm, const uint32_t timestamp_world);
-uint32_t vm_timer_speed(VM* vm, const uint32_t timestamp_world);
+uint32_t vm_calc_cpu_speed(VM* vm, const uint32_t timestamp_world);
+uint32_t vm_calc_timer_speed(VM* vm, const uint32_t timestamp_world);
+
+int vm_get_screen_width(VM* vm);
+int vm_get_screen_height(VM* vm);

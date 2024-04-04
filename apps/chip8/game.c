@@ -30,8 +30,8 @@ static void game_data_update(GameData* data) {
     FURI_LOG_D(
         "chip8",
         "update: cpu speed = %lu Hz / timer freq = %lu Hz",
-        vm_cpu_speed(data->vm, furi_get_tick()),
-        vm_timer_speed(data->vm, furi_get_tick()));
+        vm_calc_cpu_speed(data->vm, furi_get_tick()),
+        vm_calc_timer_speed(data->vm, furi_get_tick()));
     if(!vm_update(data->vm, furi_get_tick())) {
         furi_crash("update error");
     }
@@ -46,11 +46,14 @@ static void game_draw_callback(Canvas* canvas, void* model) {
     FURI_LOG_D("chip8", "draw");
     canvas_clear(canvas);
 
-    const uint8_t x_orig = (canvas_width(canvas) - VM_SCREEN_WIDTH) / 2;
-    const uint8_t y_orig = (canvas_height(canvas) - VM_SCREEN_HEIGHT) / 2;
+    const int screen_width = vm_get_screen_width(data->vm);
+    const int screen_height = vm_get_screen_height(data->vm);
 
-    for(uint8_t x_line = 0; x_line < VM_SCREEN_WIDTH; x_line++) {
-        for(uint8_t y_line = 0; y_line < VM_SCREEN_HEIGHT; y_line++) {
+    const uint8_t x_orig = (canvas_width(canvas) - screen_width) / 2;
+    const uint8_t y_orig = (canvas_height(canvas) - screen_height) / 2;
+
+    for(uint8_t x_line = 0; x_line < screen_width; x_line++) {
+        for(uint8_t y_line = 0; y_line < screen_height; y_line++) {
             const uint8_t x = x_orig + x_line;
             const uint8_t y = y_orig + y_line;
             if(vm_get_pixel(data->vm, x_line, y_line)) canvas_draw_dot(canvas, x, y);
@@ -69,7 +72,7 @@ static int32_t sound_thread_callback(void* context) {
                 GameData * data,
                 {
                     if(vm_is_sound_playing(data->vm)) {
-                        furi_hal_speaker_start(440.F, 0.5F);
+                        furi_hal_speaker_start(880.F, 0.5F);
                     } else {
                         furi_hal_speaker_stop();
                     }

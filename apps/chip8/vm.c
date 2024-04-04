@@ -12,9 +12,16 @@
 #define TIMER_TICKS_PER_SEC 60
 #define MS_PER_CPU_TICK (1000 / VM_CPU_TICKS_PER_SEC)
 #define MS_PER_TIMER_TICK (1000 / TIMER_TICKS_PER_SEC)
+#define MAX_SCREEN_WIDTH 128
+#define MAX_SCREEN_HEIGHT 64
+
+typedef enum {
+    ScreenResolutionChip8,
+    ScreenResolutionSuperChip8,
+} ScreenResolution;
 
 // clang-format off
-byte HEX_DIGITS[5 * 16] = {
+byte SMALL_HEX_DIGITS[80] = {
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
     0x20, 0x60, 0x20, 0x20, 0x70, // 1
     0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
@@ -32,6 +39,10 @@ byte HEX_DIGITS[5 * 16] = {
     0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 };
+
+byte LARGE_HEX_DIGITS[160] = {
+    
+};
 // clang-format on
 
 typedef struct VirtualMachine {
@@ -47,13 +58,49 @@ typedef struct VirtualMachine {
     uint32_t timestamp_init;
     uint64_t cpu_ticks, timer_ticks;
 
+    bool is_game_over;
+
     bool is_key_pressed[0x10];
 
     bool is_waiting_for_key;
     byte waiting_for_key_index;
 
-    bool screen[VM_SCREEN_WIDTH][VM_SCREEN_HEIGHT];
+    ScreenResolution screen_resolution;
+    int scroll_horizontal, scroll_vertical;
+    bool screen[MAX_SCREEN_WIDTH][MAX_SCREEN_HEIGHT];
 } VM;
+
+int vm_get_screen_width(VM* vm) {
+    switch(vm->screen_resolution) {
+    case ScreenResolutionSuperChip8:
+        return 128;
+    case ScreenResolutionChip8:
+        return 64;
+    }
+    return -1;
+}
+
+int vm_get_screen_height(VM* vm) {
+    switch(vm->screen_resolution) {
+    case ScreenResolutionSuperChip8:
+        return 64;
+    case ScreenResolutionChip8:
+        return 32;
+    }
+    return -1;
+}
+
+void switch_resolution(VM* vm, ScreenResolution res) {
+    vm->screen_resolution = res;
+    switch(res) {
+    case ScreenResolutionChip8:
+        for(size_t j = 0; j < 80; j++) vm->memory[j] = SMALL_HEX_DIGITS[j];
+        break;
+    case ScreenResolutionSuperChip8:
+        for(size_t j = 0; j < 160; j++) vm->memory[80 + j] = LARGE_HEX_DIGITS[j];
+        break;
+    }
+}
 
 static bool fetch_is_key_pressed(VM* vm, const byte key_id) {
     const bool ret = vm->is_key_pressed[key_id];
@@ -62,8 +109,8 @@ static bool fetch_is_key_pressed(VM* vm, const byte key_id) {
 }
 
 static void clear_display(VM* vm) {
-    for(int j = 0; j < VM_SCREEN_WIDTH; j++) {
-        for(int k = 0; k < VM_SCREEN_HEIGHT; k++) {
+    for(int j = 0; j < vm_get_screen_width(vm); j++) {
+        for(int k = 0; k < vm_get_screen_height(vm); k++) {
             vm->screen[j][k] = false;
         }
     }
@@ -82,18 +129,24 @@ void vm_start(VM* vm, const uint32_t timestamp_world) {
     vm->pc = PROG_START;
     vm->i = 0x0000;
     vm->sp = 0;
+    for(size_t j = 0; j < 0x10; j++) vm->v[j] = 0x00;
     vm->delay_timer = 0;
     vm->sound_timer = 0;
-    vm->is_waiting_for_key = false;
+
     vm->timestamp_init = timestamp_world;
     vm->cpu_ticks = 0;
     vm->timer_ticks = 0;
+    vm->is_game_over = false;
 
-    for(size_t j = 0; j < 0x10; j++) vm->v[j] = 0x00;
-    for(size_t j = 0; j < STACK_SIZE; j++) vm->stack[j] = 0x0000;
+    vm->is_waiting_for_key = false;
+
+    vm->screen_resolution = ScreenResolutionChip8;
+    vm->scroll_horizontal = 0;
+    vm->scroll_vertical = 0;
+
     for(size_t j = 0; j < 0x10; j++) vm->is_key_pressed[j] = false;
-    for(size_t j = 0; j < 80; j++) vm->memory[j] = HEX_DIGITS[j];
-    for(size_t j = 80; j < PROG_START; j++) vm->memory[j] = 0x00;
+    for(size_t j = 0; j < 80; j++) vm->memory[j] = SMALL_HEX_DIGITS[j];
+    // for(size_t j = 80; j < 80; j++) vm->memory[j] = LARGE_HEX_DIGITS[j];
 
     clear_display(vm);
 }
@@ -124,6 +177,24 @@ static bool execute(VM* vm, word opcode) {
         case 0x00EE: // RET
             vm->pc = vm->stack[--vm->sp];
             return true;
+        case 0x00FB: // SCROLL_RIGHT
+            vm->scroll_horizontal += 4;
+            return true;
+        case 0x00FC: // SCROLL_LEFT
+            vm->scroll_horizontal -= 4;
+            return true;
+        case 0x00FE: //LORES
+            switch_resolution(vm, ScreenResolutionChip8);
+            return true;
+        case 0x00FF: //HIRES
+            switch_resolution(vm, ScreenResolutionSuperChip8);
+            return true;
+        default:
+            if((opcode & 0x00C0) == 0x00C0) { // SCROLL_DOWN_N
+                vm->scroll_vertical += n;
+                return true;
+            }
+            return false;
         }
         break;
     case 0x1000: // JP addr
@@ -200,14 +271,23 @@ static bool execute(VM* vm, word opcode) {
         vm->v[x] = (rand() % 0x100) & kk;
         return true;
     case 0xD000: // DRW Vx, Vy, nibble
+        const byte sprite_height = n > 0 ? n : 16;
+        const byte bytes_per_row = n > 0 ? 1 : 2;
         bool collision = false;
-        for(byte xline = 0; xline < 8; xline++) {
-            for(byte yline = 0; yline < n; yline++) {
-                const byte col = (vm->v[x] + xline) % VM_SCREEN_WIDTH;
-                const byte row = (vm->v[y] + yline) % VM_SCREEN_HEIGHT;
-                const bool next = (vm->memory[vm->i + yline] & (1 << (8 - xline))) > 0;
-                collision = collision || (vm->screen[col][row] && next);
-                vm->screen[col][row] ^= next;
+
+        word addr = vm->i;
+        for(byte row = 0; row < n; row++) {
+            const byte y_screen = (vm->v[y] + row) % vm_get_screen_height(vm);
+            for(byte row_byte = 0; row_byte < bytes_per_row; row_byte++) {
+                const byte b = vm->memory[addr];
+                for(byte col = 0; col < 8; col++) {
+                    const byte x_screen =
+                        (vm->v[x] + col + 8 * row_byte) % vm_get_screen_width(vm);
+                    const bool next = (b & (1 << (8 - col))) > 0;
+                    collision = collision || (vm->screen[x_screen][y_screen] && next);
+                    vm->screen[x_screen][y_screen] ^= next;
+                }
+                addr++;
             }
         }
         vm->v[0xF] = collision ? 0x01 : 0x00;
@@ -245,8 +325,11 @@ static bool execute(VM* vm, word opcode) {
         case 0x001E: // ADD I, Vx
             vm->i = vm->i & vm->v[x];
             return true;
-        case 0x0029: // LD F, Vx
+        case 0x0029: // LD SMALLHEX, Vx
             vm->i = 5 * vm->v[x];
+            return true;
+        case 0x0030: // LD BIGHEX, Vx
+            vm->i = 80 + 10 * vm->v[x];
             return true;
         case 0x0033: // LD B, Vx
             const byte vx = vm->v[x];
@@ -264,7 +347,21 @@ static bool execute(VM* vm, word opcode) {
                 vm->v[j] = vm->memory[vm->i + j];
             }
             return true;
+        case 0x0075: // SAVE FLAGS, Vx
+            for(int j = 0; j <= x; j++) {
+                // save vm->v[j] to persistent memory
+            }
+            return false;
+        case 0x0085: // LOAD FLAGS, Vx
+            for(int j = 0; j <= x; j++) {
+                // load vm->v[j] from persistent memory
+            }
+            return false;
+        case 0x00FD: // EXIT
+            vm->is_game_over = true;
+            return true;
         }
+
         break;
     }
     return false;
@@ -285,11 +382,11 @@ static uint32_t uptime(VM* vm, const uint32_t timestamp_world) {
     return timestamp_world - vm->timestamp_init;
 }
 
-uint32_t vm_timer_speed(VM* vm, const uint32_t timestamp_world) {
+uint32_t vm_calc_timer_speed(VM* vm, const uint32_t timestamp_world) {
     return vm_tick_speed(vm->timer_ticks, uptime(vm, timestamp_world));
 }
 
-uint32_t vm_cpu_speed(VM* vm, const uint32_t timestamp_world) {
+uint32_t vm_calc_cpu_speed(VM* vm, const uint32_t timestamp_world) {
     return vm_tick_speed(vm->cpu_ticks, uptime(vm, timestamp_world));
 }
 
@@ -329,13 +426,11 @@ static uint32_t timestamp_timers(VM* vm) {
 
 static bool handle_scheduling(VM* vm) {
     if(timestamp_cpu(vm) <= timestamp_timers(vm)) {
-        if(!tick_cpu(vm)) {
-            return false;
-        }
+        return tick_cpu(vm);
     } else {
         tick_timers(vm);
+        return true;
     }
-    return true;
 }
 
 bool vm_update(VM* vm, const uint32_t timestamp_world) {
@@ -344,12 +439,18 @@ bool vm_update(VM* vm, const uint32_t timestamp_world) {
 
     handle_input(vm);
 
-    while((timestamp_cpu(vm) < timestamp_world) || (timestamp_timers(vm) < timestamp_world)) {
+    while((!vm->is_game_over) &&
+          ((timestamp_cpu(vm) < timestamp_world) || (timestamp_timers(vm) < timestamp_world))) {
         if(!handle_scheduling(vm)) {
             return false;
         }
     }
+
     return true;
+}
+
+bool vm_is_game_over(VM* vm) {
+    return vm->is_game_over;
 }
 
 void vm_write_prog_to_memory(VM* vm, const word addr, const byte data) {
@@ -362,7 +463,12 @@ void vm_set_keys(VM* vm, const word key_bitfield) {
     }
 }
 
-bool vm_get_pixel(VM* vm, const size_t x, const size_t y) {
+bool vm_get_pixel(VM* vm, const int x_screen, const int y_screen) {
+    const int x = x_screen - vm->scroll_horizontal;
+    const int y = y_screen - vm->scroll_vertical;
+    if(x < 0 || x >= vm_get_screen_width(vm) || y < 0 || y >= vm_get_screen_height(vm)) {
+        return false;
+    }
     return vm->screen[x][y];
 }
 
