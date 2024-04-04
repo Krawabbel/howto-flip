@@ -11,4 +11,4 @@ In this project, I want to write a Chip-8 interpreter for the flipper zero.
 
 - [Chip-8 Reference](http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#2.4)
 - [Super Chip-8 Reference](http://johnearnest.github.io/Octo/docs/SuperChip.html)
-
+- [Octo Emulator](https://github.com/JohnEarnest/Octo)

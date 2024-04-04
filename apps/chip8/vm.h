@@ -16,14 +16,14 @@ VM* vm_alloc();
 void vm_free(VM* vm);
 
 void vm_start(VM* vm, const uint32_t timestamp_world);
-
 bool vm_update(VM* vm, const uint32_t timestamp_world);
+bool vm_is_game_over(VM* vm);
 
 void vm_write_prog_to_memory(VM* vm, const word addr, const byte data);
 
 void vm_set_keys(VM* vm, const word key_bitfield);
 
-bool vm_get_pixel(VM* vm, const size_t x, const size_t y);
+bool vm_get_pixel(VM* vm, const int x_screen, const int y_screen);
 bool vm_is_sound_playing(VM* vm);
 
 uint32_t vm_calc_cpu_speed(VM* vm, const uint32_t timestamp_world);

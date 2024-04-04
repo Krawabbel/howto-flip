@@ -41,7 +41,22 @@ byte SMALL_HEX_DIGITS[80] = {
 };
 
 byte LARGE_HEX_DIGITS[160] = {
-    
+    0x3C, 0x7E, 0xE7, 0xC3, 0xC3, 0xC3, 0xC3, 0xE7, 0x7E, 0x3C,
+    0x18, 0x38, 0x58, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x3C,
+    0x3E, 0x7F, 0xC3, 0x06, 0x0C, 0x18, 0x30, 0x60, 0xFF, 0xFF,
+    0x3C, 0x7E, 0xC3, 0x03, 0x0E, 0x0E, 0x03, 0xC3, 0x7E, 0x3C,
+    0x06, 0x0E, 0x1E, 0x36, 0x66, 0xC6, 0xFF, 0xFF, 0x06, 0x06,
+    0xFF, 0xFF, 0xC0, 0xC0, 0xFC, 0xFE, 0x03, 0xC3, 0x7E, 0x3C,
+    0x3E, 0x7C, 0xE0, 0xC0, 0xFC, 0xFE, 0xC3, 0xC3, 0x7E, 0x3C,
+    0xFF, 0xFF, 0x03, 0x06, 0x0C, 0x18, 0x30, 0x60, 0x60, 0x60,
+    0x3C, 0x7E, 0xC3, 0xC3, 0x7E, 0x7E, 0xC3, 0xC3, 0x7E, 0x3C,
+    0x3C, 0x7E, 0xC3, 0xC3, 0x7F, 0x3F, 0x03, 0x03, 0x3E, 0x7C,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // no hex chars!
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,    
 };
 // clang-format on
 
@@ -90,18 +105,6 @@ int vm_get_screen_height(VM* vm) {
     return -1;
 }
 
-void switch_resolution(VM* vm, ScreenResolution res) {
-    vm->screen_resolution = res;
-    switch(res) {
-    case ScreenResolutionChip8:
-        for(size_t j = 0; j < 80; j++) vm->memory[j] = SMALL_HEX_DIGITS[j];
-        break;
-    case ScreenResolutionSuperChip8:
-        for(size_t j = 0; j < 160; j++) vm->memory[80 + j] = LARGE_HEX_DIGITS[j];
-        break;
-    }
-}
-
 static bool fetch_is_key_pressed(VM* vm, const byte key_id) {
     const bool ret = vm->is_key_pressed[key_id];
     vm->is_key_pressed[key_id] = false;
@@ -146,7 +149,7 @@ void vm_start(VM* vm, const uint32_t timestamp_world) {
 
     for(size_t j = 0; j < 0x10; j++) vm->is_key_pressed[j] = false;
     for(size_t j = 0; j < 80; j++) vm->memory[j] = SMALL_HEX_DIGITS[j];
-    // for(size_t j = 80; j < 80; j++) vm->memory[j] = LARGE_HEX_DIGITS[j];
+    for(size_t j = 0; j < 160; j++) vm->memory[80 + j] = LARGE_HEX_DIGITS[j];
 
     clear_display(vm);
 }
@@ -184,10 +187,10 @@ static bool execute(VM* vm, word opcode) {
             vm->scroll_horizontal -= 4;
             return true;
         case 0x00FE: //LORES
-            switch_resolution(vm, ScreenResolutionChip8);
+            vm->screen_resolution = ScreenResolutionChip8;
             return true;
         case 0x00FF: //HIRES
-            switch_resolution(vm, ScreenResolutionSuperChip8);
+            vm->screen_resolution = ScreenResolutionSuperChip8;
             return true;
         default:
             if((opcode & 0x00C0) == 0x00C0) { // SCROLL_DOWN_N
@@ -271,26 +274,28 @@ static bool execute(VM* vm, word opcode) {
         vm->v[x] = (rand() % 0x100) & kk;
         return true;
     case 0xD000: // DRW Vx, Vy, nibble
-        const byte sprite_height = n > 0 ? n : 16;
-        const byte bytes_per_row = n > 0 ? 1 : 2;
-        bool collision = false;
-
+        vm->v[0xF] = 0x00;
+        const bool large_sprite = (n == 0);
+        const byte sprite_height = large_sprite ? 16 : n;
+        const byte bytes_per_row = large_sprite ? 2 : 1;
         word addr = vm->i;
-        for(byte row = 0; row < n; row++) {
+        for(byte row = 0; row < sprite_height; row++) {
             const byte y_screen = (vm->v[y] + row) % vm_get_screen_height(vm);
             for(byte row_byte = 0; row_byte < bytes_per_row; row_byte++) {
                 const byte b = vm->memory[addr];
                 for(byte col = 0; col < 8; col++) {
                     const byte x_screen =
                         (vm->v[x] + col + 8 * row_byte) % vm_get_screen_width(vm);
-                    const bool next = (b & (1 << (8 - col))) > 0;
-                    collision = collision || (vm->screen[x_screen][y_screen] && next);
-                    vm->screen[x_screen][y_screen] ^= next;
+                    const bool next = (b & (1 << (7 - col))) > 0;
+                    if(next) {
+                        const bool prev = vm->screen[x_screen][y_screen];
+                        vm->screen[x_screen][y_screen] = (prev != next);
+                        vm->v[0xF] = 0x01;
+                    }
                 }
                 addr++;
             }
         }
-        vm->v[0xF] = collision ? 0x01 : 0x00;
 
         return true;
     case 0xE000:
@@ -358,7 +363,7 @@ static bool execute(VM* vm, word opcode) {
             }
             return false;
         case 0x00FD: // EXIT
-            vm->is_game_over = true;
+            // vm->is_game_over = true;
             return true;
         }
 
