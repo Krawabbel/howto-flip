@@ -22,6 +22,7 @@ bool vm_is_game_over(VM* vm);
 void vm_write_prog_to_memory(VM* vm, const word addr, const byte data);
 
 void vm_set_keys(VM* vm, const word key_bitfield);
+word vm_get_keys(VM* vm);
 
 bool vm_get_pixel(VM* vm, const int x_screen, const int y_screen);
 bool vm_is_sound_playing(VM* vm);

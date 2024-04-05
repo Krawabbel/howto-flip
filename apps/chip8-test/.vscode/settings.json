@@ -1,0 +1,13 @@
+{
+    "makefile.makefilePath": "/home/dominik/projects/repos/howto-flip/apps/chip8-test/Makefile",
+    "makefile.launchConfigurations": [
+        {
+            "cwd": "/home/dominik/projects/repos/howto-flip/apps/chip8-test",
+            "binaryPath": "/home/dominik/projects/repos/howto-flip/apps/chip8-test/demo",
+            "binaryArgs": []
+        }
+    ],
+    "files.associations": {
+        "vm.h": "c"
+    }
+}

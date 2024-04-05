@@ -11,6 +11,8 @@
 
 #include "vm.h"
 
+#define BEEP_VOLUME 0.F
+
 typedef enum {
     SoundThreadFlagExit = 0x10,
 } SoundThreadFlag;
@@ -72,7 +74,7 @@ static int32_t sound_thread_callback(void* context) {
                 GameData * data,
                 {
                     if(vm_is_sound_playing(data->vm)) {
-                        furi_hal_speaker_start(880.F, 0.5F);
+                        furi_hal_speaker_start(880.F, BEEP_VOLUME);
                     } else {
                         furi_hal_speaker_stop();
                     }
@@ -145,11 +147,11 @@ static bool game_input_callback(InputEvent* input_event, void* context) {
 static void game_enter_callback(void* context) {
     UNUSED(context);
     if(furi_hal_speaker_is_mine() || furi_hal_speaker_acquire(1)) {
-        furi_hal_speaker_start(440.0f, 0.5f);
+        furi_hal_speaker_start(440.0f, BEEP_VOLUME);
         furi_delay_ms(100);
-        furi_hal_speaker_start(550.0f, 0.5f);
+        furi_hal_speaker_start(550.0f, BEEP_VOLUME);
         furi_delay_ms(100);
-        furi_hal_speaker_start(660.0f, 0.5f);
+        furi_hal_speaker_start(660.0f, BEEP_VOLUME);
         furi_delay_ms(100);
         furi_hal_speaker_stop();
         furi_hal_speaker_release();
@@ -159,11 +161,11 @@ static void game_enter_callback(void* context) {
 static void game_exit_callback(void* context) {
     UNUSED(context);
     if(furi_hal_speaker_is_mine() || furi_hal_speaker_acquire(1)) {
-        furi_hal_speaker_start(660.0f, 0.5f);
+        furi_hal_speaker_start(660.0f, BEEP_VOLUME);
         furi_delay_ms(100);
-        furi_hal_speaker_start(550.0f, 0.5f);
+        furi_hal_speaker_start(550.0f, BEEP_VOLUME);
         furi_delay_ms(100);
-        furi_hal_speaker_start(440.0f, 0.5f);
+        furi_hal_speaker_start(440.0f, BEEP_VOLUME);
         furi_delay_ms(100);
         furi_hal_speaker_stop();
         furi_hal_speaker_release();
@@ -255,9 +257,11 @@ void game_start(Game* game, FuriString* path) {
                 }
             }
 
+            game_data_connect_input_to_key(data, InputKeyDown, 0x01);
             game_data_connect_input_to_key(data, InputKeyUp, 0x02);
             game_data_connect_input_to_key(data, InputKeyDown, 0x08);
             game_data_connect_input_to_key(data, InputKeyOk, 0x05);
+            game_data_connect_input_to_key(data, InputKeyOk, 0x00);
 
             vm_start(data->vm, furi_get_tick());
         },

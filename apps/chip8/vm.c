@@ -164,6 +164,12 @@ static word fetch(VM* vm) {
     return join(lo, hi);
 }
 
+bool xor_pixel(VM* vm, const size_t x, const size_t y, const bool next) {
+    const bool prev = vm->screen[x][y];
+    vm->screen[x][y] = prev ^ next;
+    return prev && next;
+}
+
 static bool execute(VM* vm, word opcode) {
     const word nnn = opcode & 0x0FFF;
     const byte kk = opcode & 0xFF;
@@ -232,32 +238,50 @@ static bool execute(VM* vm, word opcode) {
             return true;
         case 0x0001: // OR Vx, Vy
             vm->v[x] |= vm->v[y];
+            vm->v[0xF] = 0x00;
             return true;
         case 0x0002: // AND Vx, Vy
             vm->v[x] &= vm->v[y];
+            vm->v[0xF] = 0x00;
             return true;
         case 0x0003: // XOR Vx, Vy
             vm->v[x] ^= vm->v[y];
+            vm->v[0xF] = 0x00;
             return true;
         case 0x0004: // ADD Vx, Vy
-            vm->v[0xF] = vm->v[x] > (0xFF - vm->v[y]) ? 0x01 : 0x00;
+        {
+            const bool carry = vm->v[x] > (0xFF - vm->v[y]);
             vm->v[x] += vm->v[y];
+            vm->v[0xF] = carry ? 0x01 : 0x00;
+        }
             return true;
         case 0x0005: // SUB Vx, Vy
-            vm->v[0xF] = (vm->v[x] > vm->v[y]) ? 0x01 : 0x00;
+        {
+            const bool borrow = (vm->v[y] > vm->v[x]);
             vm->v[x] -= vm->v[y];
+            vm->v[0xF] = borrow ? 0x00 : 0x01;
+        }
             return true;
         case 0x0006: // SHR Vx {, Vy}
-            vm->v[0xF] = vm->v[x] & 0x0001;
+        {
+            vm->v[x] = vm->v[y]; // quirk
+            const bool carry = vm->v[x] & 0x01;
             vm->v[x] >>= 1;
+            vm->v[0xF] = carry ? 0x01 : 0x00;
             return true;
+        }
         case 0x0007: // SUBN Vx, Vy
-            vm->v[0xF] = vm->v[x] > vm->v[y] ? 0x01 : 0x00;
+        {
+            const bool borrow = vm->v[x] > vm->v[y];
             vm->v[x] = vm->v[y] - vm->v[x];
+            vm->v[0xF] = borrow ? 0x00 : 0x01;
             return true;
+        }
         case 0x000E: // SHL Vx {, Vy}
-            vm->v[0xF] = vm->v[x] >> 7;
+            vm->v[x] = vm->v[y]; // quirk
+            const bool carry = (vm->v[x] >> 7) & 0x01;
             vm->v[x] <<= 1;
+            vm->v[0xF] = carry ? 0x01 : 0x00;
             return true;
         }
         break;
@@ -269,31 +293,36 @@ static bool execute(VM* vm, word opcode) {
         return true;
     case 0xB000: // JP V0, addr
         vm->pc = nnn + vm->v[0x0];
+        // vm->pc = nnn + vm->v[x]; // quirk
         return true;
     case 0xC000: // RND Vx, byte
         vm->v[x] = (rand() % 0x100) & kk;
         return true;
     case 0xD000: // DRW Vx, Vy, nibble
-        vm->v[0xF] = 0x00;
+        // vm->v[0xF] = 0x00;
         const bool large_sprite = (n == 0);
         const byte sprite_height = large_sprite ? 16 : n;
         const byte bytes_per_row = large_sprite ? 2 : 1;
+        const byte y_orig = vm->v[y] & 0x1F;
+        // const byte y_orig = vm->v[y]; // quirk
+        const byte x_orig = vm->v[x] & 0x3F;
         word addr = vm->i;
         for(byte row = 0; row < sprite_height; row++) {
-            const byte y_screen = (vm->v[y] + row) % vm_get_screen_height(vm);
-            for(byte row_byte = 0; row_byte < bytes_per_row; row_byte++) {
-                const byte b = vm->memory[addr];
-                for(byte col = 0; col < 8; col++) {
-                    const byte x_screen =
-                        (vm->v[x] + col + 8 * row_byte) % vm_get_screen_width(vm);
-                    const bool next = (b & (1 << (7 - col))) > 0;
-                    if(next) {
-                        const bool prev = vm->screen[x_screen][y_screen];
-                        vm->screen[x_screen][y_screen] = (prev != next);
-                        vm->v[0xF] = 0x01;
+            const byte y_screen = (y_orig + row); // % vm_get_screen_height(vm);
+            if(y_screen < vm_get_screen_height(vm)) {
+                for(byte row_byte = 0; row_byte < bytes_per_row; row_byte++) {
+                    const byte b = vm->memory[addr];
+                    for(byte col = 0; col < 8; col++) {
+                        const byte x_screen =
+                            (x_orig + col + 8 * row_byte); // % vm_get_screen_width(vm);
+                        if(x_screen < vm_get_screen_width(vm)) {
+                            const bool next = (b & (1 << (7 - col))) > 0;
+                            vm->v[0xF] = xor_pixel(vm, x_screen, y_screen, next) ? 0x01 :
+                                                                                   vm->v[0xF];
+                        }
                     }
+                    addr++;
                 }
-                addr++;
             }
         }
 
@@ -328,7 +357,7 @@ static bool execute(VM* vm, word opcode) {
             vm->sound_timer = vm->v[x];
             return true;
         case 0x001E: // ADD I, Vx
-            vm->i = vm->i & vm->v[x];
+            vm->i += vm->v[x];
             return true;
         case 0x0029: // LD SMALLHEX, Vx
             vm->i = 5 * vm->v[x];
@@ -466,6 +495,14 @@ void vm_set_keys(VM* vm, const word key_bitfield) {
     for(size_t id = 0; id < VM_NUM_KEYS; id++) {
         vm->is_key_pressed[id] = (key_bitfield & (1 << id)) > 0;
     }
+}
+
+word vm_get_keys(VM* vm) {
+    word key_bitfield = 0x00;
+    for(size_t id = 0; id < VM_NUM_KEYS; id++) {
+        key_bitfield |= vm->is_key_pressed[id] ? 0x01 << id : 0x00;
+    }
+    return key_bitfield;
 }
 
 bool vm_get_pixel(VM* vm, const int x_screen, const int y_screen) {
