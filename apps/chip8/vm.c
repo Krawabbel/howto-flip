@@ -16,8 +16,13 @@
 #define MAX_SCREEN_HEIGHT 64
 
 typedef enum {
-    ScreenResolutionChip8,
-    ScreenResolutionSuperChip8,
+    ModeChip8,
+    ModeSuperChip8,
+} Mode;
+
+typedef enum {
+    ScreenResolutionLow,
+    ScreenResolutionHigh,
 } ScreenResolution;
 
 // clang-format off
@@ -80,6 +85,8 @@ typedef struct VirtualMachine {
     bool is_waiting_for_key;
     byte waiting_for_key_index;
 
+    Mode mode;
+
     ScreenResolution screen_resolution;
     int scroll_horizontal, scroll_vertical;
     bool screen[MAX_SCREEN_WIDTH][MAX_SCREEN_HEIGHT];
@@ -87,19 +94,35 @@ typedef struct VirtualMachine {
 
 int vm_get_screen_width(VM* vm) {
     switch(vm->screen_resolution) {
-    case ScreenResolutionSuperChip8:
+    case ScreenResolutionHigh:
         return 128;
-    case ScreenResolutionChip8:
+    case ScreenResolutionLow:
         return 64;
     }
     return -1;
 }
 
+bool apply_vf_reset(VM* vm) {
+    switch(vm->mode) {
+    case ModeSuperChip8:
+        return false;
+    case ModeChip8:
+        return true;
+    }
+    return false;
+}
+
+void vf_reset(VM* vm) {
+    if(apply_vf_reset(vm)) {
+        vm->v[0x0F] = 0x00;
+    }
+}
+
 int vm_get_screen_height(VM* vm) {
     switch(vm->screen_resolution) {
-    case ScreenResolutionSuperChip8:
+    case ScreenResolutionHigh:
         return 64;
-    case ScreenResolutionChip8:
+    case ScreenResolutionLow:
         return 32;
     }
     return -1;
@@ -143,7 +166,8 @@ void vm_start(VM* vm, const uint32_t timestamp_world) {
 
     vm->is_waiting_for_key = false;
 
-    vm->screen_resolution = ScreenResolutionChip8;
+    vm->mode = ModeChip8;
+    vm->screen_resolution = ScreenResolutionLow;
     vm->scroll_horizontal = 0;
     vm->scroll_vertical = 0;
 
@@ -188,18 +212,23 @@ static bool execute(VM* vm, word opcode) {
             return true;
         case 0x00FB: // SCROLL_RIGHT
             vm->scroll_horizontal += 4;
+            vm->mode = ModeSuperChip8;
             return true;
         case 0x00FC: // SCROLL_LEFT
             vm->scroll_horizontal -= 4;
+            vm->mode = ModeSuperChip8;
             return true;
         case 0x00FE: //LORES
-            vm->screen_resolution = ScreenResolutionChip8;
+            vm->screen_resolution = ScreenResolutionLow;
+            vm->mode = ModeSuperChip8;
             return true;
         case 0x00FF: //HIRES
-            vm->screen_resolution = ScreenResolutionSuperChip8;
+            vm->screen_resolution = ScreenResolutionHigh;
+            vm->mode = ModeSuperChip8;
             return true;
         default:
             if((opcode & 0x00C0) == 0x00C0) { // SCROLL_DOWN_N
+                vm->mode = ModeSuperChip8;
                 vm->scroll_vertical += n;
                 return true;
             }
@@ -238,15 +267,15 @@ static bool execute(VM* vm, word opcode) {
             return true;
         case 0x0001: // OR Vx, Vy
             vm->v[x] |= vm->v[y];
-            vm->v[0xF] = 0x00;
+            vf_reset(vm);
             return true;
         case 0x0002: // AND Vx, Vy
             vm->v[x] &= vm->v[y];
-            vm->v[0xF] = 0x00;
+            vf_reset(vm);
             return true;
         case 0x0003: // XOR Vx, Vy
             vm->v[x] ^= vm->v[y];
-            vm->v[0xF] = 0x00;
+            vf_reset(vm);
             return true;
         case 0x0004: // ADD Vx, Vy
         {
@@ -299,22 +328,22 @@ static bool execute(VM* vm, word opcode) {
         vm->v[x] = (rand() % 0x100) & kk;
         return true;
     case 0xD000: // DRW Vx, Vy, nibble
-        // vm->v[0xF] = 0x00;
+        vm->v[0xF] = 0x00;
         const bool large_sprite = (n == 0);
         const byte sprite_height = large_sprite ? 16 : n;
         const byte bytes_per_row = large_sprite ? 2 : 1;
-        const byte y_orig = vm->v[y] & 0x1F;
-        // const byte y_orig = vm->v[y]; // quirk
-        const byte x_orig = vm->v[x] & 0x3F;
+        const byte y_orig = vm->v[y] % vm_get_screen_height(vm);
+        // const byte y_orig = vm->v[y]; // clipping quirk
+        const byte x_orig = vm->v[x] % vm_get_screen_width(vm);
+        // const byte x_orig = vm->v[x]; // clipping quirk
         word addr = vm->i;
         for(byte row = 0; row < sprite_height; row++) {
-            const byte y_screen = (y_orig + row); // % vm_get_screen_height(vm);
+            const byte y_screen = (y_orig + row);
             if(y_screen < vm_get_screen_height(vm)) {
                 for(byte row_byte = 0; row_byte < bytes_per_row; row_byte++) {
                     const byte b = vm->memory[addr];
                     for(byte col = 0; col < 8; col++) {
-                        const byte x_screen =
-                            (x_orig + col + 8 * row_byte); // % vm_get_screen_width(vm);
+                        const byte x_screen = (x_orig + col + 8 * row_byte);
                         if(x_screen < vm_get_screen_width(vm)) {
                             const bool next = (b & (1 << (7 - col))) > 0;
                             vm->v[0xF] = xor_pixel(vm, x_screen, y_screen, next) ? 0x01 :
@@ -382,11 +411,13 @@ static bool execute(VM* vm, word opcode) {
             }
             return true;
         case 0x0075: // SAVE FLAGS, Vx
+            vm->mode = ModeSuperChip8;
             for(int j = 0; j <= x; j++) {
                 // save vm->v[j] to persistent memory
             }
             return false;
         case 0x0085: // LOAD FLAGS, Vx
+            vm->mode = ModeSuperChip8;
             for(int j = 0; j <= x; j++) {
                 // load vm->v[j] from persistent memory
             }

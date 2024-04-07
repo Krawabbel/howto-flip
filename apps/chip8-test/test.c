@@ -39,26 +39,33 @@ void run_test(const Config config) {
 
   vm_start(vm, timestamp());
 
-  const uint32_t start = timestamp();
-  uint32_t last_draw = start;
+  const uint32_t start_timestamp = timestamp();
+  uint32_t last_draw_timestamp = start_timestamp;
+  uint32_t last_input_timestamp = start_timestamp;
+  int next_input = 0;
 
-  bool input_processed = false;
-
-  while ((timestamp() - start < config.duration) || (config.duration == 0)) {
-    if ((config.input_repeat || !input_processed) &&
-        (timestamp() - start > config.input_delay)) {
-      vm_set_keys(vm, config.input_keys);
-      input_processed = true;
+  while (timestamp() - start_timestamp < config.duration) {
+    // handle input
+    const bool is_input_pending = (next_input < VM_TEST_MAX_INPUTS);
+    const bool is_input_initialized = config.input_keys[next_input] > 0;
+    const bool is_input_overdue =
+        timestamp() - last_input_timestamp > config.input_delays[next_input];
+    const bool apply_input =
+        is_input_pending && is_input_initialized && is_input_overdue;
+    if (apply_input) {
+      vm_set_keys(vm, config.input_keys[next_input]);
+      next_input++;
+      last_input_timestamp = timestamp();
     }
-
+    // handle game status
     const bool game_status = vm_update(vm, timestamp());
     if (!game_status) {
       printf("game error\n");
     }
-
-    if ((timestamp() - last_draw) * 60 > 1000) {
+    // handle output
+    if ((timestamp() - last_draw_timestamp) * 60 > 1000) {
       draw_screen(vm);
-      last_draw = timestamp();
+      last_draw_timestamp = timestamp();
     }
   }
 
