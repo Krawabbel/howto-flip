@@ -8,7 +8,7 @@ demo: demo.c vm.o test.o
 test.o: test.c vm.o
 	$(CC) $(CFLAGS) -c test.c -o test.o
 
-vm.o: ../chip8/vm.c vm.o
+vm.o: ../chip8/vm.c
 	$(CC) $(CFLAGS) -c ../chip8/vm.c -o vm.o
 
 clean:

@@ -9,6 +9,8 @@ uint16_t key(const uint8_t key_id) {
 int main() {
   // clang-format off
   Config configs[] = {
+      {.name = "../chip8-roms/games/1dcell.ch8",                .duration = 100000, .input_delays = {   0,    0,    0,    0}, .input_keys = {NO_KEY, NO_KEY, NO_KEY, NO_KEY}},
+      {.name = "../chip8-roms/games/mondrian.ch8",              .duration = 100000, .input_delays = {   0,    0,    0,    0}, .input_keys = {NO_KEY, NO_KEY, NO_KEY, NO_KEY}},
       {.name = "../chip8-roms/games/br8kout.ch8",               .duration = 6000,   .input_delays = {4000,    0,    0,    0}, .input_keys = {0xFF, NO_KEY, NO_KEY, NO_KEY}},
       {.name = "../chip8-roms/tests/6-keypad.ch8",              .duration = 6000,   .input_delays = {1000, 1000, 1000, 1000}, .input_keys = {key(1), key(0xD), key(0xF), key(0)}},
       {.name = "../chip8-roms/tests/6-keypad.ch8",              .duration = 6000,   .input_delays = {1000, 1000, 1000, 1000}, .input_keys = {key(2), key(0xD), key(0xF), key(0)}},
@@ -31,11 +33,10 @@ int main() {
       {.name = "../chip8-roms/tests/11-heart_monitor.ch8",      .duration = 3000,   .input_delays = {   0,    0,    0,    0}, .input_keys = {NO_KEY, NO_KEY, NO_KEY, NO_KEY}},
       {.name = "../chip8-roms/tests/12-random_number_test.ch8", .duration = 6000,   .input_delays = {1000, 1000, 1000, 1000}, .input_keys = {key(0), key(1), key(2), key(3)}},
       {.name = "../chip8-roms/games/superpong.ch8",             .duration = 1000,   .input_delays = {   0,    0,    0,    0}, .input_keys = {NO_KEY, NO_KEY, NO_KEY, NO_KEY}},
-      {.name = "../chip8-roms/games/mondrian.ch8",              .duration = 100000, .input_delays = {   0,    0,    0,    0}, .input_keys = {NO_KEY, NO_KEY, NO_KEY, NO_KEY}},
   };
   // clang-format on
 
-  for (int i = 0; i < 20; i++) {
+  for (int i = 0; i < 24; i++) {
     run_test(configs[i]);
   }
 }
