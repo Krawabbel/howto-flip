@@ -11,7 +11,7 @@
 
 #include "vm.h"
 
-#define BEEP_VOLUME 0.F
+#define BEEP_VOLUME 0.5F
 
 typedef enum {
     SoundThreadFlagExit = 0x10,
@@ -218,7 +218,6 @@ static void game_data_load(GameData* data, FuriString* path) {
 
     Storage* storage = furi_record_open(RECORD_STORAGE);
     Stream* stream = file_stream_alloc(storage);
-    FuriString* line = furi_string_alloc();
 
     FURI_LOG_D("chip8", "----------------------------------------");
     FURI_LOG_D("chip8", "bytecode:");
@@ -233,7 +232,6 @@ static void game_data_load(GameData* data, FuriString* path) {
         FURI_LOG_D("chip8", "%d: %u", addr, *c);
     }
 
-    furi_string_free(line);
     file_stream_close(stream);
     stream_free(stream);
     furi_record_close(RECORD_STORAGE);
@@ -244,6 +242,14 @@ static void game_data_connect_input_to_key(GameData* data, InputKey input_key, s
     data->input_to_key_map[input_id][key_id] = true;
 }
 
+static void game_data_reset_input_to_key_map(GameData* data) {
+    for(size_t input_id = 0; input_id < InputKeyMAX; input_id++) {
+        for(size_t key_id = 0; key_id < VM_NUM_KEYS; key_id++) {
+            data->input_to_key_map[input_id][key_id] = false;
+        }
+    }
+}
+
 void game_start(Game* game, FuriString* path) {
     with_view_model(
         game->view,
@@ -251,12 +257,7 @@ void game_start(Game* game, FuriString* path) {
         {
             game_data_load(data, path);
 
-            for(size_t input_id = 0; input_id < InputKeyMAX; input_id++) {
-                for(size_t key_id = 0; key_id < VM_NUM_KEYS; key_id++) {
-                    data->input_to_key_map[input_id][key_id] = false;
-                }
-            }
-
+            game_data_reset_input_to_key_map(data);
             game_data_connect_input_to_key(data, InputKeyDown, 0x01);
             game_data_connect_input_to_key(data, InputKeyUp, 0x02);
             game_data_connect_input_to_key(data, InputKeyDown, 0x08);

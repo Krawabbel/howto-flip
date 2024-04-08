@@ -75,7 +75,7 @@ int32_t chip8_app() {
     void* context = chip8;
 
     file_browser_set_callback(chip8->browser, file_browser_callback, context);
-    file_browser_configure(chip8->browser, "ch8", ROM_PATH, true, true, NULL, true);
+    file_browser_configure(chip8->browser, "ch8", ROM_PATH, true, true, &I_chip8, true);
     file_browser_start(chip8->browser, chip8->path);
     View* browser_view = file_browser_get_view(chip8->browser);
     view_dispatcher_add_view(chip8->view_dispatcher, FileBrowserViewId, browser_view);
