@@ -12,8 +12,6 @@
 
 #include "chip8_icons.h"
 
-#define ROM_PATH (EXT_PATH("chip8"))
-
 typedef struct Chip8App {
     ViewDispatcher* view_dispatcher;
     FuriString* path;
@@ -63,19 +61,19 @@ static void file_browser_callback(void* context) {
 
 int32_t chip8_app() {
     Storage* storage = furi_record_open(RECORD_STORAGE);
-    storage_simply_mkdir(storage, ROM_PATH);
+    storage_simply_mkdir(storage, GAME_DATA_PATH);
     furi_record_close(RECORD_STORAGE);
 
     Chip8* chip8 = malloc(sizeof(Chip8));
     chip8->view_dispatcher = view_dispatcher_alloc();
-    chip8->path = furi_string_alloc_set_str(ROM_PATH);
+    chip8->path = furi_string_alloc_set_str(GAME_DATA_PATH);
     chip8->browser = file_browser_alloc(chip8->path);
     chip8->game = game_alloc();
 
     void* context = chip8;
 
     file_browser_set_callback(chip8->browser, file_browser_callback, context);
-    file_browser_configure(chip8->browser, "ch8", ROM_PATH, true, true, &I_chip8, true);
+    file_browser_configure(chip8->browser, "ch8", GAME_DATA_PATH, true, true, &I_chip8, true);
     file_browser_start(chip8->browser, chip8->path);
     View* browser_view = file_browser_get_view(chip8->browser);
     view_dispatcher_add_view(chip8->view_dispatcher, FileBrowserViewId, browser_view);

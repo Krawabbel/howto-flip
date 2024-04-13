@@ -2,6 +2,8 @@
 
 #include <gui/view.h>
 
+#define GAME_DATA_PATH (EXT_PATH("chip8"))
+
 typedef struct Chip8Game Game;
 
 Game* game_alloc();

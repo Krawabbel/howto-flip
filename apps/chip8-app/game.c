@@ -9,6 +9,7 @@
 
 #include "game.h"
 
+#include "button_config.h"
 #include "vm.h"
 
 #define BEEP_VOLUME 0.5F
@@ -19,7 +20,7 @@ typedef enum {
 
 typedef struct Chip8GameData {
     VM* vm;
-    bool input_to_key_map[InputKeyMAX][VM_NUM_KEYS];
+    ButtonConfig* button_config;
     FuriThreadId sound_thread_id;
 } GameData;
 
@@ -99,17 +100,6 @@ static int32_t sound_thread_callback(void* context) {
     return 0;
 }
 
-static uint16_t game_data_map_input_to_keys(GameData* data, InputEvent* input_event) {
-    const bool is_key_pressed = (input_event->type == InputTypePress);
-    const size_t input_id = (size_t)(input_event->key);
-    uint16_t keys = 0x00;
-    for(size_t key_id = 0; key_id < VM_NUM_KEYS; key_id++) {
-        const int bit = is_key_pressed && data->input_to_key_map[input_id][key_id];
-        keys |= (bit << key_id);
-    }
-    return keys;
-}
-
 static void game_end(Game* game) {
     /* Signal the sound thread to cease operation and exit */
     furi_thread_flags_set(furi_thread_get_id(game->sound_thread), SoundThreadFlagExit);
@@ -136,7 +126,8 @@ static bool game_input_callback(InputEvent* input_event, void* context) {
         GameData * data,
         {
             game_data_update(data);
-            const word key_bitfield = game_data_map_input_to_keys(data, input_event);
+            const word key_bitfield =
+                button_config_map_input_to_keys(data->button_config, input_event);
             vm_set_keys(data->vm, key_bitfield);
         },
         false);
@@ -187,6 +178,7 @@ Game* game_alloc() {
         GameData * data,
         {
             data->vm = vm_alloc();
+            data->button_config = button_config_alloc(BUTTON_CONFIG_PATH);
             data->sound_thread_id = furi_thread_get_id(game->sound_thread);
         },
         false);
@@ -203,7 +195,13 @@ Game* game_alloc() {
 
 void game_free(Game* game) {
     with_view_model(
-        game->view, GameData * data, { vm_free(data->vm); }, false);
+        game->view,
+        GameData * data,
+        {
+            button_config_free(data->button_config, BUTTON_CONFIG_PATH);
+            vm_free(data->vm);
+        },
+        false);
     furi_thread_free(game->sound_thread);
     view_free(game->view);
     free(game);
@@ -237,33 +235,12 @@ static void game_data_load(GameData* data, FuriString* path) {
     furi_record_close(RECORD_STORAGE);
 }
 
-static void game_data_connect_input_to_key(GameData* data, InputKey input_key, size_t key_id) {
-    const size_t input_id = input_key;
-    data->input_to_key_map[input_id][key_id] = true;
-}
-
-static void game_data_reset_input_to_key_map(GameData* data) {
-    for(size_t input_id = 0; input_id < InputKeyMAX; input_id++) {
-        for(size_t key_id = 0; key_id < VM_NUM_KEYS; key_id++) {
-            data->input_to_key_map[input_id][key_id] = false;
-        }
-    }
-}
-
 void game_start(Game* game, FuriString* path) {
     with_view_model(
         game->view,
         GameData * data,
         {
             game_data_load(data, path);
-
-            game_data_reset_input_to_key_map(data);
-            game_data_connect_input_to_key(data, InputKeyDown, 0x01);
-            game_data_connect_input_to_key(data, InputKeyUp, 0x02);
-            game_data_connect_input_to_key(data, InputKeyDown, 0x08);
-            game_data_connect_input_to_key(data, InputKeyOk, 0x05);
-            game_data_connect_input_to_key(data, InputKeyOk, 0x00);
-
             vm_start(data->vm, furi_get_tick());
         },
         false);
